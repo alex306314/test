@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>test</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no">
+    <script src="http://admin.wx.my/Public/Res-manage/js/jquery-1.7.2.min.js"></script>
+    <script src="http://admin.wx.my/Public/Res-manage/js/jquery-ui-1.8.21.custom.min.js"></script>
+    <script src="js/jquery.mousewheel.min.js"></script>
+
+    <!--<script type="text/javascript" src="js/star.js"></script>-->
+    <style>
+        .imgw{margin:5px;}
+        *{margin:0;padding:0;}
+        .imgw{position: relative}
+        .ctlw{
+            position: absolute;
+            bottom:0;
+            left:0;
+            width:100%;
+            height:30px;
+            z-index: 300;
+        }
+        .ctlbg{display: block;position: absolute;left:0;top:0;width:100%;height:30px;background: black;
+            opacity: 0.7;
+        }
+        .ctlw .btn{position:absolute;display: block;color:white;height:30px;line-height: 30px;width:30px;
+            text-align: center;left:0;top:0;font-size: 12px;cursor:pointer;
+        }
+        .ctlw .b2{left:30px;}
+        .ctlw .b3{left:60px;}
+        .ctlw .b4{left:90px;}
+    </style>
+
+</head>
+<body style="font-size: 50px;height:800px">
+
+<div class="imgw" style="width:400px;height:300px;border:1px solid #ccc;float:left;">
+    <img src="http://localhost/test/images/1.jpg" alt="" class="zoomimg"
+         data-options="{'width':400,'height':300}"/>
+    <div class="ctlw">
+        <span class="ctlbg"></span>
+        <span class="btn b1 btn_rotate_left">向左</span>
+        <span class="btn b2 btn_rotate_right">向右</span>
+        <span class="btn b3 btn_zoom_in">大</span>
+        <span class="btn b4 btn_zoom_out">小</span>
+    </div>
+</div>
+
+<div class="imgw" style="width:400px;height:500px;border:1px solid #ccc;float:left;">
+    <img src="http://localhost/test/images/1.jpg" alt="" class="zoomimg"
+         data-options="{'width':400,'height':500}"/>
+    <div class="ctlw">
+        <span class="ctlbg"></span>
+        <span class="btn b1 btn_rotate_left">向左</span>
+        <span class="btn b2 btn_rotate_right">向右</span>
+        <span class="btn b3 btn_zoom_in">大</span>
+        <span class="btn b4 btn_zoom_out">小</span>
+    </div>
+</div>
+
+<div class="imgw" style="width:400px;height:200px;border:1px solid #ccc;float:left;">
+    <img src="http://localhost/test/images/2.jpg" alt="" class="zoomimg"
+         data-options="{'width':400,'height':200}"/>
+</div>
+
+<div class="imgw" style="width:400px;height:500px;border:1px solid #ccc;float:left;">
+    <img src="http://localhost/test/images/2.jpg" alt="" class="zoomimg"
+         data-options="{'width':400,'height':500}"/>
+</div>
+
+<div class="starzoom" data-options="{'a':1,'b':'heel'}" style="width:100px;height:300px;background: #ccc;" id="div1"></div>
+<div id="viewport" class="starzoom" data-starzoom = 'image: "images"'></div>
+
+<script>
+    //StarZoom.quickStart();
+    (function($){
+        var Events = {
+            REDRAW: "redraw",
+            MOUSE_WHEEL: "mousewheel",
+            MOUSE_DOWN: "mousedown",
+            MOUSE_UP: "mouseup",
+            MOUSE_MOVE: "mousemove"
+        };
+        /**
+         * 类定义
+         * @param options
+         * @constructor
+         */
+        var StarZoom = function(options){
+            this.$s = -1;  //当前操作的imgDOM
+            this.$wrapper = -1; this.$canvas = -1; this.$blank = -1;//appended DOM object
+            this.backgroundColor = "white";//canvas background
+            this.ctx = -1; //canvas context
+            this.img = -1; this.ratio = 0;//image dom  image ratio
+            this.width = 0;this.height = 0; //canvas width height
+            this.mouseIsDown = false;
+            this.ow = 0; this.oh = 0;//image original width height
+            this.sx = 0; this.sy = 0; this.sw=0; this.sh=0;this.dx=0; this.dy=0;//drawImage()
+            this.dw=0; this.dh=0;//drawImage()
+            this.mouseX = 0; this.mouseY = 0; //mouse position
+            this.zoomStep = 30;
+            this.minWidth = 50;
+            this.centerx = 0;this.centery = 0;
+            this.olddw = 0; this.olddh = 0;
+            this.degree = 0; //旋转的角度
+            this.btnRotateLeft = '.btn_rotate_left';//向左转class
+            this.btnRotateRight = '.btn_rotate_right';
+            this.btnZoomIn = '.btn_zoom_in'; //放大按钮
+            this.btnZoomOut = '.btn_zoom_out'; //缩小按钮
+            this.initialize(options);
+        };
+        StarZoom.prototype = {
+            initialize: function(options){
+                var self = this;
+                $.extend(this, options);
+                self.img = new Image();
+                self.img.onload = function(){
+                    self.ow = self.img.width;
+                    self.oh = self.img.height;
+                    self.initDom();//初始化所需DOM
+                    self.bindEvents(); //绑定相关事件
+
+                    self.ctx = self.$canvas[0].getContext("2d");
+                    self.initImage();//初始化图片绘制
+                }
+                self.img.src = this.$s.attr("src");
+            },
+            bindEvents: function(){
+                var self = this;
+                //空白层 mouse wheel down up move事件
+                self.$blank.on(Events.MOUSE_WHEEL +" "+ Events.MOUSE_DOWN +" "+ Events.MOUSE_UP
+                        +" "+ Events.MOUSE_MOVE, function(e){
+                    switch(e.type) {
+                        case Events.MOUSE_MOVE:
+                            self.handleBlankMouseMove(e);
+                            break;
+                        case Events.MOUSE_DOWN:
+                            self.mouseX = e.pageX;
+                            self.mouseY = e.pageY;
+                            self.mouseIsDown = true;
+                            self.$blank.css({cursor:"move"});
+                            //console.log(e.pageX - self.$canvas.offset().left);
+                            break;
+                        case Events.MOUSE_UP:
+                            self.mouseIsDown = false;
+                            self.$blank.css({cursor:"auto"});
+                            break;
+                        case Events.MOUSE_WHEEL:
+                            e.preventDefault();
+                            self.handleBlankMouseWheel(e);
+                            break;
+                    }
+                });
+                //绑定重绘事件
+                self.$canvas.bind(Events.REDRAW, function(){
+                    self.ctx.fillStyle = self.backgroundColor;
+                    self.ctx.fillRect(0,0,self.width,self.height); //重置背景
+                    self.getCenter();  //获取图片中心在canvas上的坐标值
+                    self.ctx.save();
+                    self.ctx.translate(self.centerx, self.centery);//参考点移动到图片中心
+                    self.ctx.rotate(self.degree*Math.PI/180);   //旋转
+                    self.ctx.translate(-self.centerx, -self.centery); //重置参考点
+                    self.ctx.drawImage(self.img, self.sx, self.sy, self.sw, self.sh,self.dx, self.dy, self.dw, self.dh);
+                    self.ctx.restore();
+                });
+                var $parent = self.$s.parent();
+                $parent.find(self.btnRotateLeft).on("click", function(){
+                    self.degree -= 90;
+                    self.redraw();
+                });
+                $parent.find(self.btnRotateRight).on("click", function(){
+                    self.degree += 90;
+                    self.redraw();
+                });
+                $parent.find(self.btnZoomIn).on("click", function(){
+                    self.olddw = self.dw;
+                    self.olddh = self.dh;
+                    self.resizeByDelta(1, 0.5, 0.5);
+                    self.redraw();
+                });
+                $parent.find(self.btnZoomOut).on("click", function(){
+                    self.olddw = self.dw;
+                    self.olddh = self.dh;
+                    self.resizeByDelta(-1, 0.5, 0.5);
+                    self.redraw();
+                });
+            },
+            getCenter: function(){
+                var self = this;
+                self.centerx = self.dw/2 + self.dx;
+                self.centery = self.dh/2 + self.dy;
+            },
+            initImage: function(){
+                var self = this;
+                self.ratio = self.ow/self.oh;
+                self.sh = self.oh; self.sw = self.ow;
+                if(self.width >= self.height){ //显示区域宽大与高
+                    self.initByHeight();
+                    if(Math.abs(self.width-self.ow) > Math.abs(self.height-self.oh)){
+                        self.initByWidth();
+                    }
+                }else{
+                    self.initByWidth();
+                    if(Math.abs(self.width-self.ow) < Math.abs(self.height-self.oh)){
+                        self.initByHeight();
+                    }
+                }
+                self.redraw();
+                self.$canvas.stop(true,false).animate({opacity:1},1500,'linear');
+            },
+            handleBlankMouseMove: function(e){
+                var self = this;
+                if(!self.mouseIsDown) return;
+                self.dx += (e.pageX - self.mouseX );
+                self.dy += (e.pageY - self.mouseY);
+                self.mouseX = e.pageX;
+                self.mouseY = e.pageY;
+                self.redraw();
+            },
+            handleBlankMouseWheel: function(e){
+                var self = this, delta, posx,posy,deltax=0.5, deltay=0.5;
+                self.olddw = self.dw;
+                self.olddh = self.dh;
+                if(e.deltaY > 0){delta = 1;}else{delta = -1;}
+
+                posx = Math.abs(e.pageX - self.$canvas.offset().left - self.dx);
+                posy = Math.abs(e.pageY - self.$canvas.offset().top - self.dy);
+                deltax = posx/self.olddw;
+                deltay = posy/self.olddh;
+                self.resizeByDelta(delta, deltax, deltay);
+                self.redraw();
+            },
+            resizeByDelta: function(delta, deltax, deltay){
+                var self = this;
+                self.dw += delta * self.zoomStep;
+                self.dw = self.dw<self.minWidth ? self.minWidth : self.dw;
+                self.dh = self.dw/self.ratio;
+
+                self.dx -= delta*Math.abs(self.olddw-self.dw)*deltax;
+                self.dy -= delta*Math.abs(self.olddh-self.dh)*deltay;
+            },
+            redraw: function(){
+                this.$canvas.trigger(Events.REDRAW);
+            },
+            initByHeight: function(){
+                var self = this;
+                self.dh = self.height;
+                self.dw = self.dh * self.ratio;
+                self.dy = 0;
+                self.dx = (self.width-self.dw)/2;
+            },
+            initByWidth: function(){
+                var self = this;
+                self.dw = self.width;
+                self.dh = self.dw/self.ratio;
+                self.dx = 0;
+                self.dy = (self.height-self.dh)/2;
+            },
+            //初始化所需的DOM
+            initDom: function(){
+                var self = this;
+                self.$wrapper = $('<div class="star_zoom sw"></div>');
+                self.$canvas = $('<canvas class="star_zoom sc"></canvas>');
+                self.$blank = $('<div class="star_zoom sl" unselectable="on"></div>');
+                self.$canvas.css({
+                    position:"absolute",top:0,left:0,zIndex:100, opacity:0
+                }).attr({width:self.width,height:self.height}).appendTo(self.$wrapper);
+                self.$blank.css({
+                    width:self.width + "px",height:self.height+"px",position:"absolute",top:0,left:0,zIndex:110
+                }).appendTo(self.$wrapper);
+                self.$wrapper.css({
+                    width:self.width + "px",height:self.height+"px",overflow:"hidden",position:"relative"
+                }).appendTo(self.$s.css({display:"none"}).parent());
+            }
+        }
+        ///////
+        $.fn.starZoom = function(){
+            $.each(this, function(i,n){
+                var $s = $(n);
+                var options = $s.data("options");
+                options = !options?{}: $.parseJSON(options.replace(/'/ig, "\""));
+                options.$s = $s;
+                new StarZoom(options);
+            });
+        }
+    })(jQuery);
+
+
+    $(".zoomimg").starZoom();
+</script>
+
+</body>
+</html>
